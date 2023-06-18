@@ -1,2 +1,3 @@
-# greenhouse
-Real-time user event analytics system
+# Greenhouse Analytics
+
+A real-time user event analytics system. (Work in progress)
