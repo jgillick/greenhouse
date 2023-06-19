@@ -1,7 +1,8 @@
 import express from "express";
 import bodyParser from "body-parser";
 import morgan from "morgan";
-import { eventRoutes } from "./event";
+import { eventRoutes } from "./routes/event";
+import { userRoutes } from "./routes/user";
 
 const PORT = 3000;
 
@@ -16,6 +17,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 // Routes
 eventRoutes(app);
+userRoutes(app);
 
 // Start server
 try {
