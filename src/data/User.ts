@@ -1,10 +1,12 @@
 import { v4 as uuid } from "uuid";
 import { clickhouse } from "../lib/clickhouse";
 
-type UserRecord = {
+export type UserRecord = {
   id: string;
-  alias_id: string;
-  timestamp: number;
+  alias_id?: string;
+  created_at?: number;
+  updated_at?: number;
+  is_deleted: number;
   [key: string]: any;
 };
 
@@ -12,29 +14,40 @@ type UserRecord = {
  * Data model for a user record
  */
 export const User = {
-  RESERVED_COLUMNS: ["id", "timestamp"],
+  RESERVED_COLUMNS: ["id", "created_at", "updated_at", "is_deleted"],
+
+  /**
+   * Get user records by IDs or alias IDs
+   */
+  async get(ids: string[]): Promise<UserRecord[]> {
+    return clickhouse
+      .query({
+        query_params: { ids },
+        query: `
+          SELECT
+            DISTINCT ON (user.id)
+            user.*,
+            user_alias.id as alias_id
+          FROM user
+          JOIN user_alias ON user_alias.user_id = user.id
+          WHERE
+            (
+              user.id in ({ids: Array(UUID)})
+              OR user_alias.alias in ({ids: Array(String)})
+            )
+            AND user.is_deleted = 0
+          ORDER BY updated_at DESC
+        `,
+        format: "JSONEachRow",
+      })
+      .then((result) => result.json<UserRecord[]>());
+  },
 
   /**
    * Get user record by ID or alias ID
    */
-  async get(id: string): Promise<UserRecord> {
-    return clickhouse
-      .query({
-        query_params: { id },
-        query: `
-          SELECT
-            user.id,
-            user_alias.id as alias_id
-          FROM user
-          join user_alias on user_alias.user_id = user.id
-          WHERE
-            user_alias.alias = {id: String}
-            OR user_alias.user_id = {id: String} limit 1
-        `,
-        format: "JSONEachRow",
-      })
-      .then((result) => result.json<UserRecord[]>())
-      .then((list) => list[0]);
+  async getOne(id: string): Promise<UserRecord> {
+    return this.get([id]).then((list) => list[0]);
   },
 
   /**
@@ -44,39 +57,20 @@ export const User = {
     const id = uuid();
     await clickhouse.insert({
       table: "user",
-      values: [{ id }],
+      values: [{ id, sign: 1 }],
       format: "JSONEachRow",
     });
     return id;
   },
 
   /**
-   * Create a user alias
-   * @param userId - The internal greenhouse user ID
-   * @param aliasId - The ID to alias to the internal ID
-   */
-  async alias(userId: string, alias: string) {
-    const id = uuid();
-    await clickhouse.insert({
-      table: "user_alias",
-      values: [
-        {
-          id,
-          alias,
-          user_id: userId,
-        },
-      ],
-      format: "JSONEachRow",
-    });
-  },
-
-  /**
    * Set properties on user object
    */
-  async update(data: Record<string, any>) {
+  async update(data: UserRecord[]) {
+    const now = Math.round(Date.now() / 1000);
     await clickhouse.insert({
       table: "user",
-      values: [data],
+      values: data.map((item) => ({ ...item, updated_at: now })),
       format: "JSONEachRow",
     });
   },
@@ -90,5 +84,40 @@ export const User = {
       .then((resultSet) => resultSet.json<{ data: any[] }>())
       .then((results) => results.data);
     return rows.map<string>((row) => row.name);
+  },
+
+  /**
+   * Set the update time on a list of user properties
+   */
+  async setPropertyTimes(userId: string, properties: string[]) {
+    await clickhouse.insert({
+      table: "user_property_time",
+      values: properties.map((property) => ({ user_id: userId, property })),
+      format: "JSONEachRow",
+    });
+  },
+
+  /**
+   * Return the most recent properties from two user records.
+   * This is used when merging two user records
+   */
+  async mostRecentUserProperties(userIdA: string, userIdB: string) {
+    return clickhouse
+      .query({
+        query_params: { userIdA, userIdB },
+        query: `
+          SELECT
+            DISTINCT ON (property)
+            user_id,
+            property
+          FROM user_property_time
+          WHERE user_id IN ({userIdA: UUID}, {userIdB: UUID})
+          ORDER BY timestamp DESC
+        `,
+        format: "JSONEachRow",
+      })
+      .then((resultSet) => {
+        return resultSet.json<{ user_id: string; property: string }[]>();
+      });
   },
 };

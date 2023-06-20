@@ -1,10 +1,8 @@
 import { clickhouse } from "../lib/clickhouse";
 
-const NOT_PROP_COLS = ["user_id", "event", "time"];
-
 export type EventProps = Record<string, any>;
 
-type EventRow = {
+export type EventRow = {
   time: number;
   event: string;
   user_alias_id: string;

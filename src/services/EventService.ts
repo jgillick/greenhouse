@@ -1,4 +1,4 @@
-import { Event, EventProps } from "../data/Event";
+import { Event, EventProps, EventRow } from "../data/Event";
 import { PropFor } from "../data/Property";
 import { UserService } from "./UserService";
 import { PropertyService } from "./PropertyService";
@@ -65,7 +65,7 @@ export class EventService {
         time,
         event: event.name,
         user_alias_id: user.alias_id,
-      };
+      } as EventRow;
     });
 
     // Add to DB

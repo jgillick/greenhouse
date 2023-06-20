@@ -27,7 +27,7 @@ export const PropertyService = {
   /**
    * Create a valid column name from a user-defined string
    */
-  convert2ColumnName(val: string, existing: string[], reservedNames: string[]) {
+  convert2ColumnName(val: string, existing: string[]) {
     let column = val
       .toLowerCase()
       .trim()
@@ -35,16 +35,8 @@ export const PropertyService = {
       .replace(/[^a-z0-9\s]/, "") // Remove unsupported characters
       .substring(0, 30);
 
-    // Must start with a character
-    const firstChar = column[0];
-    if (!/[a-z]/.test(firstChar)) {
-      column = `p_${column}`;
-    }
-
-    // Cannot be a reserved column name
-    if (reservedNames.includes(column)) {
-      column = `p_${column}`;
-    }
+    // Start with a p_ to denote it as a property
+    column = `p_${column}`;
 
     // Ensure the column is unique
     let i = 0;
@@ -102,8 +94,6 @@ export const PropertyService = {
     const newPropColumns: string[] = [];
 
     // Find missing props
-    const reservedColumnNames =
-      this.getTableModel(propFor)?.RESERVED_COLUMNS ?? [];
     propsEntries.forEach(([name, value]) => {
       const prop = existingPropMap.get(name);
       const dataType = this.determineType(value);
@@ -111,11 +101,7 @@ export const PropertyService = {
 
       // A new property column needs to be created
       if (!prop || !column || (column && !existingColumns.includes(column))) {
-        column = this.convert2ColumnName(
-          name,
-          existingColumns,
-          reservedColumnNames
-        );
+        column = this.convert2ColumnName(name, existingColumns);
         newPropColumns.push(column);
       }
 
