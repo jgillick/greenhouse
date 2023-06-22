@@ -131,3 +131,6 @@ dist
 
 # Editors
 .vscode/
+
+# Misc
+.DS_Store
