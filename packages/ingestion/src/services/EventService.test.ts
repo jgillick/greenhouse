@@ -4,7 +4,6 @@ import { v4 as uuid } from "uuid";
 import { UserRecord } from "../data/User";
 import { Event } from "../data/Event";
 import { PROPERTY_PREFIX, PropDataType, PropFor } from "../data/Property";
-
 import { PropertyService } from "./PropertyService";
 import { UserService } from "./UserService";
 import { EventService } from "./EventService";
