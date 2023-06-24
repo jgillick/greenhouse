@@ -30,10 +30,9 @@ export const Event = {
    * Get table columns
    */
   async getColumns() {
-    const rows = await clickhouse
+    return clickhouse
       .query({ query: `DESCRIBE event` })
-      .then((resultSet) => resultSet.json<{ data: any[] }>())
-      .then((results) => results.data);
-    return rows.map<string>((row) => row.name);
+      .then((resultSet) => resultSet.json<{ data: { name: string }[] }>())
+      .then((results) => results.data.map((row) => row.name));
   },
 };

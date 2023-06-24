@@ -1,13 +1,20 @@
 import { v4 as uuid } from "uuid";
 import { clickhouse } from "../lib/clickhouse";
+import { PropertyTuple } from "./Property";
 
 export type UserRecord = {
+  /** The internal user ID */
   id: string;
+
+  /** The alias used when looking up this user. */
   alias_id?: string;
+
   created_at?: number;
   updated_at?: number;
-  is_deleted: number;
-  [key: string]: any;
+  is_deleted?: number;
+
+  /** User properties */
+  [key: string]: PropertyTuple | string | number | null | undefined;
 };
 
 /**
@@ -57,7 +64,7 @@ export const User = {
     const id = uuid();
     await clickhouse.insert({
       table: "user",
-      values: [{ id, sign: 1 }],
+      values: [{ id }],
       format: "JSONEachRow",
     });
     return id;
@@ -66,11 +73,22 @@ export const User = {
   /**
    * Set properties on user object
    */
-  async update(data: UserRecord[]) {
+  async update(data: UserRecord) {
     const now = Math.round(Date.now() / 1000);
     await clickhouse.insert({
       table: "user",
-      values: data.map((item) => ({ ...item, updated_at: now })),
+      values: [{ ...data, updated_at: now }],
+      format: "JSONEachRow",
+    });
+  },
+
+  /**
+   * Delete a user record by ID
+   */
+  async delete(id: string) {
+    await clickhouse.insert({
+      table: "user",
+      values: [{ id, is_deleted: 1 }],
       format: "JSONEachRow",
     });
   },

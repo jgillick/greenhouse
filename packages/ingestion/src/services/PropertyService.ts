@@ -2,9 +2,12 @@ import { parseISO, isValid as isValidDate } from "date-fns";
 import {
   Property,
   PropFor,
+  PropValue,
+  PropertyTuple,
   PropDataType,
   PropertyRow,
   PropertyRecord,
+  PROPERTY_PREFIX,
 } from "../data/Property";
 import { Event } from "../data/Event";
 import { User } from "../data/User";
@@ -14,33 +17,23 @@ import { User } from "../data/User";
  */
 export const PropertyService = {
   /**
-   * Return the property value formatted into the correct tuple space
-   */
-  getValueTuple(value: any) {
-    const type = PropertyService.determineType(value);
-    const tuple = {
-      [type]: value,
-    };
-    return tuple;
-  },
-
-  /**
    * Create a valid column name from a user-defined string
    */
   convert2ColumnName(val: string, existing: string[]) {
     let column = val
       .toLowerCase()
       .trim()
-      .replace(/[\.\-]/g, "_") // Convert dots and dashes to underlines
-      .replace(/[^a-z0-9\s]/, "") // Remove unsupported characters
+      .replace(/[\.\-\s]/g, "_") // Convert dots and dashes to underlines
+      .replace(/[^a-z0-9_]/g, "") // Remove unsupported characters
+      .replace(/_+/g, "_") // Collapse multiple underscores
       .substring(0, 30);
 
     // Start with a p_ to denote it as a property
-    column = `p_${column}`;
+    column = `${PROPERTY_PREFIX}_${column}`;
 
     // Ensure the column is unique
     let i = 0;
-    let base = column;
+    const base = column;
     while (existing.includes(column)) {
       i++;
       column = `${base}${i}`;
@@ -50,32 +43,56 @@ export const PropertyService = {
   },
 
   /**
-   * Determine the simplified prop data type
+   * Determine which tuple slot this value should go it.
    */
-  determineType(val: any) {
+  determineTupleType(val: unknown) {
+    if (val === null || typeof val === "undefined") {
+      return null;
+    }
+
     switch (typeof val) {
       case "number":
         return PropDataType.num;
       case "boolean":
         return PropDataType.bool;
-      case "string":
+      case "string": {
         // Is the string actually a date
         const isDate = isValidDate(parseISO(val));
-        if (isValidDate(isDate)) {
+        if (isDate) {
           return PropDataType.date;
         }
         return PropDataType.str;
+      }
+    }
+    return PropDataType.str;
+  },
+
+  /**
+   * Return the property value formatted into the correct tuple space
+   */
+  getValueTuple(value: PropValue | null): PropertyTuple {
+    const type = this.determineTupleType(value);
+    if (type === null) {
+      return {};
     }
 
-    return PropDataType.str;
+    // Cast into string, just in case it was a fallback
+    if (type === "str" && typeof value !== "string") {
+      value = JSON.stringify(value);
+    }
+
+    const tuple = {
+      [type]: value,
+    };
+    return tuple;
   },
 
   /**
    * Create new prop columns, if necessary
    */
-  async createProps(
+  async createPropColumns(
     propFor: PropFor,
-    propsEntries: [/*name*/ string, /*value*/ string][]
+    propsEntries: [/*name*/ string, /*value*/ unknown][]
   ): Promise<Map<string, string>> {
     const columnMap = new Map<string, string>();
 
@@ -90,38 +107,43 @@ export const PropertyService = {
     // Get existing table columns directly
     const existingColumns = await this.getTableColumns(propFor);
 
-    const newPropRecords: PropertyRow[] = [];
-    const newPropColumns: string[] = [];
-
     // Find missing props
+    const newPropTypeRecords: PropertyRow[] = [];
+    const newPropColumns: string[] = [];
     propsEntries.forEach(([name, value]) => {
-      const prop = existingPropMap.get(name);
-      const dataType = this.determineType(value);
-      let column = prop?.column;
+      const propDef = existingPropMap.get(name);
+      const registeredTypes = propDef?.dataTypes ?? [];
+      const dataType = this.determineTupleType(value);
+      const columnName =
+        propDef?.column || this.convert2ColumnName(name, existingColumns);
 
-      // A new property column needs to be created
-      if (!prop || !column || (column && !existingColumns.includes(column))) {
-        column = this.convert2ColumnName(name, existingColumns);
-        newPropColumns.push(column);
+      // If the value is null, no need to create the column
+      if (dataType === null) {
+        return;
       }
 
-      // Register the property
-      if (!prop || !prop.dataTypes.includes(dataType)) {
-        newPropRecords.push({
+      // A new property column needs to be created
+      if (columnName && !existingColumns.includes(columnName)) {
+        newPropColumns.push(columnName);
+      }
+
+      // Register the property if we haven't logged this data-type for it
+      if (!registeredTypes.includes(dataType)) {
+        newPropTypeRecords.push({
           name,
-          column,
+          column: columnName,
           for: propFor,
           data_type: dataType,
         });
       }
 
-      columnMap.set(name, column);
+      columnMap.set(name, columnName);
     });
 
     // Create property definitions
     let createDefs = Promise.resolve();
-    if (newPropRecords.length) {
-      createDefs = Property.create(newPropRecords);
+    if (newPropTypeRecords.length) {
+      createDefs = Property.create(newPropTypeRecords);
     }
 
     // Add prop columns to table

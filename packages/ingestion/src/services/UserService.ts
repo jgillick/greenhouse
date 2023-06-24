@@ -1,6 +1,6 @@
 import { User, UserRecord } from "../data/User";
-import { UserAlias, AliasRecord } from "../data/UserAlias";
-import { PropFor } from "../data/Property";
+import { UserAlias } from "../data/UserAlias";
+import { PropFor, PropValue } from "../data/Property";
 import { PropertyService } from "./PropertyService";
 
 /**
@@ -10,7 +10,7 @@ export const UserService = {
   /**
    * Get or create user with ID.
    */
-  async getOrCreate(id: string) {
+  async getOrCreate(id: string): Promise<UserRecord> {
     const existing = await User.getOne(id);
 
     // Return existing ID
@@ -25,12 +25,14 @@ export const UserService = {
   },
 
   /**
-   * Create a user alias
-   * @param fromId - The user ID or previous alias ID
+   * Create an alias to a user.
+   * Aliases are how we identify users externally.
+   * An alias can be an system user ID, an email address, etc.
+   * @param userId - The user ID or previous alias ID
    * @param alias - The new value to alias to this user
    */
-  async alias(fromId: string, alias: string) {
-    const user = await this.getOrCreate(fromId);
+  async alias(userId: string, alias: string) {
+    const user = await this.getOrCreate(userId);
     const existing = await UserAlias.get(alias);
 
     // Create alias
@@ -45,12 +47,12 @@ export const UserService = {
   /**
    * Set properties on the user record
    */
-  async setProperties(userId: string, props: Record<string, any>) {
-    const user = await UserService.getOrCreate(userId);
+  async setProperties(userId: string, props: Record<string, PropValue>) {
+    const user = await this.getOrCreate(userId);
     const propItems = Object.entries(props);
 
     // Create prop columns, if necessary
-    const propColumnMap = await PropertyService.createProps(
+    const propColumnMap = await PropertyService.createPropColumns(
       PropFor.USER,
       propItems
     );
@@ -68,17 +70,22 @@ export const UserService = {
     // Update DB
     const update = { ...user, ...propData };
     await Promise.all([
-      User.update([update]),
+      User.update(update),
       User.setPropertyTimes(user.id, Object.keys(propData)),
     ]);
   },
 
   /**
    * Merge user records
+   * @param userA - The ID or alias to a user
+   * @param userB - The ID or alias to a user
    */
-  async merge(userIdA: string, userIdB: string) {
-    // Get users
-    const users = await User.get([userIdA, userIdB]);
+  async merge(userA: string, userB: string) {
+    const users = await User.get([userA, userB]);
+
+    // If both IDs belong to the same user, no need to merge.
+    // This can happen even if both IDs are different, because
+    // the IDs are aliased to the same user.
     if (users.length == 1) {
       return users[0];
     }
@@ -88,14 +95,14 @@ export const UserService = {
       (a: UserRecord, b: UserRecord) =>
         (a.created_at ?? 0) - (b.created_at ?? 0)
     );
-    userIdA = users[0].id;
-    userIdB = users[1].id;
+    const userIdA = users[0].id;
+    const userIdB = users[1].id;
 
     const userMap: Record<string, UserRecord> = {};
     users.forEach((user) => (userMap[user.id] = user));
 
     // Merge the most recent properties
-    const merged: Record<string, any> = {};
+    const merged: Partial<UserRecord> = {};
     const latestProps = await User.mostRecentUserProperties(userIdA, userIdB);
     latestProps.forEach((prop) => {
       const name = prop.property;
@@ -105,32 +112,25 @@ export const UserService = {
       }
     });
 
-    // Update merged A and delete B
-    const userAData: UserRecord = {
+    // Update user A data
+    const mergedData: UserRecord = {
       ...userMap[userIdA],
       ...merged,
     };
-    const userBData: UserRecord = {
-      id: userIdB,
-      is_deleted: 1,
-    };
-    const userRows = [userAData, userBData];
 
-    // Update merge records
+    // Reassociate all User B aliases to A
     const aliases = await UserAlias.getForUser(userIdB);
-    const aliasUpdates = aliases.reduce<AliasRecord[]>((prev, item) => {
-      // Delete previous alias
-      prev.push({ alias: item.alias } as AliasRecord);
-
-      // Reassociate
-      item.user_id = userIdB;
-      prev.push(item);
-
-      return prev;
-    }, []);
+    const aliasUpdates = aliases.map((item) => ({
+      ...item,
+      user_id: userIdA,
+    }));
 
     // Run queries
-    await Promise.all([User.update(userRows), UserAlias.update(aliasUpdates)]);
-    return userAData;
+    await Promise.all([
+      User.delete(userIdB),
+      User.update(mergedData),
+      UserAlias.update(aliasUpdates),
+    ]);
+    return mergedData;
   },
 };

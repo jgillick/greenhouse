@@ -12,6 +12,15 @@ export enum PropDataType {
   date = "date",
 }
 
+export type PropValue = string | number | boolean;
+
+export type PropertyTuple = {
+  str?: string;
+  num?: number;
+  bool?: boolean;
+  date?: string;
+};
+
 export type PropertyRecord = {
   name: string;
   for: PropFor;
@@ -27,6 +36,8 @@ export type PropertyRow = {
   data_type: PropDataType;
   timestamp?: number;
 };
+
+export const PROPERTY_PREFIX = "p";
 
 /**
  * Data model for the property table
@@ -79,7 +90,7 @@ export const Property = {
           num Nullable(Float32),
           bool Nullable(Boolean),
           date Nullable(DateTime)
-        )`,
+        ) DEFAULTS (NULL, NULL, NULL, NULL)`,
       });
       resultSet.stream.destroy();
     });
