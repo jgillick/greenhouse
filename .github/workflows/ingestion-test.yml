@@ -28,7 +28,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: pr-coverage
-          path: coverage/
+          path: packages/ingestion/coverage/
           retention-days: 1
 
   #
@@ -52,7 +52,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: base-coverage
-          path: coverage/
+          path: packages/ingestion/coverage/
           retention-days: 1
 
   #
