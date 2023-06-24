@@ -1,16 +1,17 @@
-import { Event, EventProps, EventRow } from "../data/Event";
-import { PropFor, PropertyTuple } from "../data/Property";
+import { Event, EventRow } from "../data/Event";
+import { PropFor, PropertyTuple, PropValue } from "../data/Property";
 import { UserService } from "./UserService";
 import { PropertyService } from "./PropertyService";
 
-type EventItem = {
+export type EventProps = Record<string, PropValue>;
+
+export type EventItem = {
   name: string;
   props: EventProps;
   time: number;
 };
 
-export type EventSubmitPayload = {
-  time: number;
+export type EventPayload = {
   userId: string;
   events: EventItem[];
 };
@@ -19,7 +20,7 @@ export class EventService {
   /**
    * Add one or more events into the system
    */
-  static async create(payload: EventSubmitPayload) {
+  static async create(payload: EventPayload) {
     // Create user, if necessary
     const user = await UserService.getOrCreate(payload.userId);
 
@@ -34,12 +35,7 @@ export class EventService {
     );
 
     // Create event rows
-    const now = Date.now();
-    const startTime = payload.time;
     const rows = payload.events.map((event) => {
-      const timediff = event.time - startTime;
-      const time = now + timediff;
-
       // Remap props to DB columns
       const props = Object.entries(event.props || {}).reduce<
         Record<string, PropertyTuple>
@@ -58,7 +54,7 @@ export class EventService {
 
       return {
         ...props,
-        time,
+        time: event.time,
         event: event.name,
         user_alias_id: user.alias_id,
       } as EventRow;
