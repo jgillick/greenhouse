@@ -21,12 +21,37 @@ describe("event", () => {
         userId: "foo",
         events: [
           {
-            time: now - 4,
+            time: expect.anything(),
             name: "event",
             props: { prop1: "value1" },
           },
         ],
       });
+    });
+
+    test("adjust submitted times to server times", () => {
+      const now = Date.now();
+      const result = convertPayload({
+        t: 5,
+        u: "foo",
+        e: [
+          {
+            t: 1,
+            n: "event",
+            p: { prop1: "value1" },
+          },
+        ],
+      });
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          events: [
+            expect.objectContaining({
+              time: now - 4,
+            }),
+          ],
+        })
+      );
     });
 
     test("return null if missing t (time)", () => {

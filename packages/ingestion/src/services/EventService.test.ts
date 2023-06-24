@@ -6,7 +6,7 @@ import { Event } from "../data/Event";
 import { PROPERTY_PREFIX, PropDataType, PropFor } from "../data/Property";
 import { PropertyService } from "./PropertyService";
 import { UserService } from "./UserService";
-import { EventService } from "./EventService";
+import { EventService, EventPayload } from "./EventService";
 
 describe("EventService", () => {
   describe("create", () => {
@@ -29,7 +29,6 @@ describe("EventService", () => {
 
     test("add event and properties", async () => {
       await EventService.create({
-        time: 5,
         userId: "alias",
         events: [{ name: "test.event", props: { foo: "fuz" }, time: 1 }],
       });
@@ -48,7 +47,6 @@ describe("EventService", () => {
 
     test("define property columns", async () => {
       await EventService.create({
-        time: 0,
         userId: "alias",
         events: [{ name: "test.event", props: { foo: "fuz" }, time: 1 }],
       });
@@ -58,30 +56,12 @@ describe("EventService", () => {
       ]);
     });
 
-    test("adjust event time from client timestamps to server timestamps", async () => {
-      const now = Date.now();
-      const input = {
-        time: 5,
-        userId: "alias",
-        events: [{ name: "test.event", props: { foo: "fuz" }, time: 1 }],
-      };
-      await EventService.create(input);
-
-      const expectedEventTime = now - (input.time - input.events[0].time);
-      const insertParam = (Event.insert as jest.Mock).mock.calls[0][0][0];
-      const calculatedEventTime = insertParam.time;
-      const diff = Math.abs(expectedEventTime - calculatedEventTime);
-
-      // Should be within a second of error
-      expect(diff).toBeLessThanOrEqual(1);
-    });
-
     test("drop null value properties", async () => {
       await EventService.create({
         time: 0,
         userId: "alias",
         events: [{ name: "test.event", props: { foo: null }, time: 1 }],
-      });
+      } as unknown as EventPayload);
       expect(Event.insert).toBeCalledWith([
         {
           time: expect.anything(),
@@ -96,7 +76,7 @@ describe("EventService", () => {
         time: 0,
         userId: "alias",
         events: [{ name: "test.event", props: { foo: undefined }, time: 1 }],
-      });
+      } as unknown as EventPayload);
       expect(Event.insert).toBeCalledWith([
         {
           time: expect.anything(),
