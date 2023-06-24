@@ -150,6 +150,7 @@ describe("UserService", () => {
       User.get = jest.fn();
       User.update = jest.fn();
       User.delete = jest.fn();
+      UserAlias.getForUser = jest.fn().mockResolvedValue([]);
       User.mostRecentUserProperties = jest.fn().mockResolvedValue([]);
       UserAlias.update = jest.fn();
     });
