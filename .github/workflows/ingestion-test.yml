@@ -4,6 +4,10 @@ on:
     paths:
       - "packages/ingestion/src/**"
 
+defaults:
+  run:
+    working-directory: packages/ingestion/
+
 jobs:
   #
   # Run unit tests on PR branch
