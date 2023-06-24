@@ -1,6 +1,6 @@
 import { v4 as uuid } from "uuid";
 import { clickhouse } from "../lib/clickhouse";
-import { PropertyTuple } from "./Property";
+import { PropertyTuple, PropDataType } from "./Property";
 
 export type UserRecord = {
   /** The internal user ID */
@@ -21,7 +21,15 @@ export type UserRecord = {
  * Data model for a user record
  */
 export const User = {
-  RESERVED_COLUMNS: ["id", "created_at", "updated_at", "is_deleted"],
+  /**
+   * A list of strongly typed properties that are built-in
+   * and do not need to be created or prefixed
+   */
+  BUILT_IN_PROPERTIES: {
+    name: PropDataType.str,
+    email: PropDataType.str,
+    avatar: PropDataType.str,
+  },
 
   /**
    * Get user records by IDs or alias IDs

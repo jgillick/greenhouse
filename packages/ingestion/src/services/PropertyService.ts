@@ -19,8 +19,8 @@ export const PropertyService = {
   /**
    * Create a valid column name from a user-defined string
    */
-  convert2ColumnName(val: string, existing: string[]) {
-    let column = val
+  convert2ColumnName(name: string, existing: string[]) {
+    let column = name
       .toLowerCase()
       .trim()
       .replace(/[\.\-\s]/g, "_") // Convert dots and dashes to underlines
@@ -95,12 +95,13 @@ export const PropertyService = {
     propsEntries: [/*name*/ string, /*value*/ unknown][]
   ): Promise<Map<string, string>> {
     const columnMap = new Map<string, string>();
+    const builtInProps = this.getBuiltInProps(propFor);
 
     // Get existing prop definitions
     const existingProps = await Property.getProps(propFor);
     const existingPropMap = new Map<string, PropertyRecord>();
     existingProps.forEach((row) => {
-      existingPropMap.set(row.name, row);
+      existingPropMap.set(row.name.toLowerCase(), row);
       columnMap.set(row.name, row.column);
     });
 
@@ -111,11 +112,25 @@ export const PropertyService = {
     const newPropTypeRecords: PropertyRow[] = [];
     const newPropColumns: string[] = [];
     propsEntries.forEach(([name, value]) => {
-      const propDef = existingPropMap.get(name);
+      const propDef = existingPropMap.get(name.toLowerCase());
       const registeredTypes = propDef?.dataTypes ?? [];
       const dataType = this.determineTupleType(value);
-      const columnName =
-        propDef?.column || this.convert2ColumnName(name, existingColumns);
+      let columnName = propDef?.column;
+
+      // This is a built-in type, use the name as-is (but lower-cased)
+      const builtInName = name.toLowerCase();
+      if (builtInProps[builtInName]) {
+        // If the data-types do not match, drop this property value
+        if (dataType !== builtInProps[builtInName]) {
+          return;
+        }
+        columnName = builtInName;
+      }
+
+      // Convert property name to column name
+      if (!columnName) {
+        columnName = this.convert2ColumnName(name, existingColumns);
+      }
 
       // If the value is null, no need to create the column
       if (dataType === null) {
@@ -179,5 +194,16 @@ export const PropertyService = {
       return model?.getColumns();
     }
     return Promise.resolve([]);
+  },
+
+  /**
+   * Get built-in strongly typed properties
+   */
+  getBuiltInProps(table: PropFor): Record<string, PropDataType> {
+    const model = this.getTableModel(table);
+    if (model) {
+      return model?.BUILT_IN_PROPERTIES ?? {};
+    }
+    return {};
   },
 };

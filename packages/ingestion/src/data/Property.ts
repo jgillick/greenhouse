@@ -87,7 +87,7 @@ export const Property = {
       const resultSet = await clickhouse.exec({
         query: `ALTER TABLE ${onTable} ADD COLUMN IF NOT EXISTS "${col}" Tuple(
           str Nullable(String),
-          num Nullable(Float32),
+          num Nullable(Float64),
           bool Nullable(Boolean),
           date Nullable(DateTime)
         ) DEFAULTS (NULL, NULL, NULL, NULL)`,

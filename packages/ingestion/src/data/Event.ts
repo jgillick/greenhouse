@@ -1,7 +1,5 @@
 import { clickhouse } from "../lib/clickhouse";
 
-export type EventProps = Record<string, any>;
-
 export type EventRow = {
   time: number;
   event: string;
@@ -13,7 +11,11 @@ export type EventRow = {
  * Data model for events
  */
 export const Event = {
-  RESERVED_COLUMNS: ["id", "user_alias_id", "event", "timestamp"],
+  /**
+   * A list of strongly typed properties that are built-in
+   * and do not need to be created or prefixed
+   */
+  BUILT_IN_PROPERTIES: {},
 
   /**
    * Insert an event into the table

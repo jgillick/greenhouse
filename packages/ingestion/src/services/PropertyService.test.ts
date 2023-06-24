@@ -149,6 +149,13 @@ describe("PropertyService", () => {
       jest.spyOn(PropertyService, "getTableColumns").mockResolvedValue([]);
     });
 
+    test("return map of property names to column names", async () => {
+      const result = await PropertyService.createPropColumns(PropFor.EVENT, [
+        ["foo", "value"],
+      ]);
+      expect(result.get("foo")).toBe(`${PROPERTY_PREFIX}_foo`);
+    });
+
     test("create new property", async () => {
       await PropertyService.createPropColumns(PropFor.EVENT, [
         ["foo", "value"],
@@ -234,6 +241,62 @@ describe("PropertyService", () => {
           data_type: PropDataType.bool,
         },
       ]);
+    });
+
+    test("ignore case when matching with property definitions", async () => {
+      Property.getProps = jest.fn().mockResolvedValue([
+        {
+          name: "FoO",
+          column: `${PROPERTY_PREFIX}_foo`,
+          dataTypes: [PropDataType.str],
+        },
+      ]);
+
+      await PropertyService.createPropColumns(PropFor.EVENT, [
+        ["fOo", "value"],
+      ]);
+      expect(Property.create).not.toBeCalled();
+    });
+
+    describe("built-in properties", () => {
+      beforeEach(() => {
+        User.BUILT_IN_PROPERTIES["name"] = PropDataType.str;
+        jest
+          .spyOn(PropertyService, "getTableColumns")
+          .mockResolvedValue(["name"]);
+      });
+
+      test("Create property definition but not the column", async () => {
+        const colMap = await PropertyService.createPropColumns(PropFor.USER, [
+          ["name", "value"],
+        ]);
+        expect(Property.addPropColumns).not.toBeCalled();
+        expect(Property.create).toBeCalledWith([
+          {
+            column: "name",
+            name: "name",
+            data_type: PropDataType.str,
+            for: PropFor.USER,
+          },
+        ]);
+        expect(colMap.get("name")).toBe("name");
+      });
+
+      test("data types do not match, drop property value", async () => {
+        const colMap = await PropertyService.createPropColumns(PropFor.USER, [
+          ["name", 1],
+          ["foo", "bar"],
+        ]);
+        expect(colMap.has("name")).not.toBeTruthy();
+        expect(colMap.get("foo")).toBe(`${PROPERTY_PREFIX}_foo`);
+      });
+
+      test("case insensitive match", async () => {
+        const colMap = await PropertyService.createPropColumns(PropFor.USER, [
+          ["NaMe", "value"],
+        ]);
+        expect(colMap.get("NaMe")).toBe("name");
+      });
     });
   });
 

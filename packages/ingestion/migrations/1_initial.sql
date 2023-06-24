@@ -5,6 +5,9 @@ CREATE TABLE IF NOT EXISTS user (
   created_at DateTime DEFAULT now(),
   updated_at DateTime DEFAULT now(),
   is_deleted UInt8 DEFAULT 0,
+  name String,
+  email String,
+  avatar String,
 ) ENGINE = ReplacingMergeTree(updated_at, is_deleted)
 ORDER BY
   id PRIMARY KEY (id) SETTINGS clean_deleted_rows = 'Always';
