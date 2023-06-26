@@ -378,8 +378,11 @@ describe("PropertyService", () => {
     });
 
     test("date string to unix epoch", () => {
-      const result = PropertyService.castType("2023-01-14", PropDataType.date);
-      expect(result).toBe(1673683200000);
+      const result = PropertyService.castType(
+        "2023-01-14T00:00:00.000Z",
+        PropDataType.date
+      );
+      expect(result).toBe(1673654400000);
     });
 
     test("invalid date string", () => {

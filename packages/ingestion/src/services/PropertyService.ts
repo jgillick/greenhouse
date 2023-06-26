@@ -232,6 +232,7 @@ export const PropertyService = {
     } else if (type === PropDataType.date && typeof value === "string") {
       const date = parseISO(value);
       const isDate = isValidDate(date);
+      console.log(date);
       if (isDate) {
         return date.getTime();
       }
