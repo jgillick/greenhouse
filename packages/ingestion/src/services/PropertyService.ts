@@ -55,11 +55,14 @@ export const PropertyService = {
         return PropDataType.num;
       case "boolean":
         return PropDataType.bool;
+      case "object":
       case "string": {
         // Is the string actually a date
-        const isDate = isValidDate(parseISO(val));
-        if (isDate) {
-          return PropDataType.date;
+        if (typeof val === "string") {
+          const isDate = isValidDate(parseISO(val));
+          if (isDate) {
+            return PropDataType.date;
+          }
         }
         return PropDataType.str;
       }
@@ -71,20 +74,26 @@ export const PropertyService = {
    * Return the property value formatted into the correct tuple space
    */
   getValueTuple(value: PropValue | null): PropertyTuple {
+    const nullTuple: PropertyTuple = {
+      [PropDataType.str]: null,
+      [PropDataType.num]: null,
+      [PropDataType.bool]: null,
+      [PropDataType.date]: null,
+    };
+    if (value === null) {
+      return nullTuple;
+    }
+
     const type = this.determineTupleType(value);
     if (type === null) {
-      return {};
+      return nullTuple;
     }
 
-    // Cast into string, just in case it was a fallback
-    if (type === "str" && typeof value !== "string") {
-      value = JSON.stringify(value);
-    }
-
-    const tuple = {
-      [type]: value,
+    const castedValue = this.castType(value, type);
+    return {
+      ...nullTuple,
+      [type]: castedValue,
     };
-    return tuple;
   },
 
   /**
@@ -205,5 +214,38 @@ export const PropertyService = {
       return model?.BUILT_IN_PROPERTIES ?? {};
     }
     return {};
+  },
+
+  /**
+   * Cast the value to a type, or null
+   */
+  castType(
+    value: PropValue,
+    type: PropDataType
+  ): string | number | boolean | null {
+    if (type === PropDataType.bool) {
+      if (typeof value === "boolean") {
+        return value;
+      } else if (typeof value === "number") {
+        return value ? true : false;
+      }
+    } else if (type === PropDataType.date && typeof value === "string") {
+      const date = parseISO(value);
+      const isDate = isValidDate(date);
+      if (isDate) {
+        return date.getTime();
+      }
+    } else if (type === PropDataType.num) {
+      const num = Number(value);
+      if (!isNaN(num)) {
+        return num;
+      }
+    } else if (type === PropDataType.str) {
+      if (typeof value === "string") {
+        return value;
+      }
+      return JSON.stringify(value);
+    }
+    return null;
   },
 };

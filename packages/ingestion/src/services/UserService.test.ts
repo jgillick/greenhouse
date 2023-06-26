@@ -1,12 +1,15 @@
 import "jest";
 import { v4 as uuid } from "uuid";
 import { User, UserRecord } from "../data/User";
+import { UserPropertyTime } from "../data/UserPropertyTime";
 import { UserAlias, AliasRecord } from "../data/UserAlias";
 import { PropFor } from "../data/Property";
 import { PropertyService } from "./PropertyService";
 import { UserService } from "./UserService";
 
 describe("UserService", () => {
+  const nullTuple = { str: null, num: null, bool: null, date: null };
+
   describe("getOrCreate", () => {
     beforeEach(async () => {
       User.getOne = jest.fn().mockResolvedValue(undefined);
@@ -105,7 +108,7 @@ describe("UserService", () => {
       };
 
       User.update = jest.fn();
-      User.setPropertyTimes = jest.fn();
+      UserPropertyTime.setPropertyTimes = jest.fn();
 
       jest.spyOn(UserService, "getOrCreate").mockResolvedValue(user);
       jest
@@ -118,7 +121,7 @@ describe("UserService", () => {
         .spyOn(PropertyService, "createPropColumns")
         .mockResolvedValue(new Map<string, string>([["foo", "p_foo"]]));
 
-      await UserService.setProperties(user.id, { foo: "bar" });
+      await UserService.setProperties(user.id, { foo: "bar" }, "normal");
 
       expect(PropertyService.createPropColumns).toBeCalledWith(PropFor.USER, [
         ["foo", "bar"],
@@ -126,10 +129,96 @@ describe("UserService", () => {
       expect(User.update).toBeCalledWith({
         ...user,
         p_foo: {
+          ...nullTuple,
           str: "bar",
         },
       });
-      expect(User.setPropertyTimes).toBeCalledWith(user.id, ["p_foo"]);
+      expect(UserPropertyTime.setPropertyTimes).toBeCalledWith(user.id, [
+        ["p_foo", "normal"],
+      ]);
+    });
+
+    test("built-in properties", async () => {
+      jest
+        .spyOn(PropertyService, "createPropColumns")
+        .mockResolvedValue(new Map<string, string>([["name", "name"]]));
+
+      await UserService.setProperties(user.id, { name: "John" }, "normal");
+
+      expect(PropertyService.createPropColumns).toBeCalledWith(PropFor.USER, [
+        ["name", "John"],
+      ]);
+      expect(User.update).toBeCalledWith({
+        ...user,
+        name: "John",
+      });
+      expect(UserPropertyTime.setPropertyTimes).toBeCalledWith(user.id, [
+        ["name", "normal"],
+      ]);
+    });
+  });
+
+  describe("incrementProperty", () => {
+    let user: UserRecord;
+
+    beforeEach(async () => {
+      user = {
+        id: uuid(),
+        alias_id: "alias",
+        name: "John",
+        p_views: { num: 1, str: null, bool: null, date: null },
+        p_foo: { num: null, str: "bar", bool: null, date: null },
+      };
+
+      User.update = jest.fn();
+      UserPropertyTime.setPropertyTimes = jest.fn();
+
+      jest.spyOn(UserService, "getOrCreate").mockResolvedValue(user);
+      jest.spyOn(PropertyService, "createPropColumns").mockResolvedValue(
+        new Map<string, string>([
+          ["views", "p_views"],
+          ["foo", "p_foo"],
+        ])
+      );
+    });
+
+    test("increment existing value", async () => {
+      await UserService.incrementProperty(user.id, "views");
+      expect(User.update).toBeCalledWith(
+        expect.objectContaining({
+          id: user.id,
+          p_views: { num: 2, bool: null, date: null, str: null },
+        })
+      );
+    });
+
+    test("create column to increment", async () => {
+      jest
+        .spyOn(PropertyService, "createPropColumns")
+        .mockResolvedValue(new Map<string, string>([["unknown", "p_unknown"]]));
+
+      await UserService.incrementProperty(user.id, "unknown");
+      expect(User.update).toBeCalledWith(
+        expect.objectContaining({
+          id: user.id,
+          p_unknown: { num: 1, bool: null, date: null, str: null },
+        })
+      );
+    });
+
+    test("set to 1 if the existing value is not a number", async () => {
+      await UserService.incrementProperty(user.id, "foo");
+      expect(User.update).toBeCalledWith(
+        expect.objectContaining({
+          id: user.id,
+          p_views: { num: 1, bool: null, date: null, str: null },
+        })
+      );
+    });
+
+    test("cannot increment built-in values", async () => {
+      await UserService.incrementProperty(user.id, "name");
+      expect(User.update).not.toBeCalled();
     });
   });
 
@@ -150,9 +239,10 @@ describe("UserService", () => {
       User.get = jest.fn();
       User.update = jest.fn();
       User.delete = jest.fn();
-      UserAlias.getForUser = jest.fn().mockResolvedValue([]);
-      User.mostRecentUserProperties = jest.fn().mockResolvedValue([]);
       UserAlias.update = jest.fn();
+      UserAlias.getForUser = jest.fn().mockResolvedValue([]);
+      UserPropertyTime.getForUsers = jest.fn().mockResolvedValue([]);
+      UserPropertyTime.setPropertyTimes = jest.fn();
     });
 
     test("if A & B alias to the same user, there is nothing to merge", async () => {
@@ -168,27 +258,52 @@ describe("UserService", () => {
     test("merge the more recent property values", async () => {
       userA = {
         ...userA,
-        p_foo: { str: "bar" },
-        p_boo: null,
+        p_foo: { ...nullTuple, str: "bar" },
+        p_boo: { ...nullTuple, bool: true },
       };
       userB = {
         ...userB,
-        p_foo: { num: 1 },
-        p_boo: { bool: false },
+        p_foo: { ...nullTuple, num: 1 },
+        p_boo: { ...nullTuple, bool: false },
       };
 
       User.get = jest.fn().mockResolvedValue([userA, userB]);
-      User.mostRecentUserProperties = jest.fn().mockResolvedValue([
-        { property: "p_foo", user_id: userA.id },
-        { property: "p_boo", user_id: userB.id },
+      UserPropertyTime.getForUsers = jest.fn().mockResolvedValue([
+        { property: "p_foo", user_id: userA.id, timestamp: 1 },
+        { property: "p_foo", user_id: userB.id, timestamp: 2 },
+        { property: "p_boo", user_id: userA.id, timestamp: 2 },
+        { property: "p_boo", user_id: userB.id, timestamp: 1 },
       ]);
 
       const result = await UserService.merge(
         userA.alias_id as string,
         userB.alias_id as string
       );
-      expect(result.p_foo).toEqual({ str: "bar" });
-      expect(result.p_boo).toEqual({ bool: false });
+      expect(result.p_foo).toEqual({ ...nullTuple, num: 1 });
+      expect(result.p_boo).toEqual({ ...nullTuple, bool: true });
+    });
+
+    test("if only one user has the property, use that", async () => {
+      userA = {
+        ...userA,
+        p_foo: { ...nullTuple, str: "bar" },
+      };
+      userB = {
+        ...userB,
+      };
+
+      User.get = jest.fn().mockResolvedValue([userA, userB]);
+      UserPropertyTime.getForUsers = jest
+        .fn()
+        .mockResolvedValue([
+          { property: "p_foo", user_id: userA.id, timestamp: 1 },
+        ]);
+
+      const result = await UserService.merge(
+        userA.alias_id as string,
+        userB.alias_id as string
+      );
+      expect(result.p_foo).toEqual({ ...nullTuple, str: "bar" });
     });
 
     test("sort A/B and merge into the older record and delete the younger record", async () => {
@@ -221,6 +336,106 @@ describe("UserService", () => {
       expect(UserAlias.update).toBeCalledWith([
         { id: "", user_id: userB.id, alias: "alias" },
       ]);
+    });
+
+    test("merge built-in props", async () => {
+      userA = {
+        ...userA,
+        name: "John",
+      };
+      userB = {
+        ...userB,
+        name: "Joann",
+      };
+
+      User.get = jest.fn().mockResolvedValue([userA, userB]);
+      UserPropertyTime.getForUsers = jest.fn().mockResolvedValue([
+        { property: "name", user_id: userA.id, timestamp: 1, type: "normal" },
+        { property: "name", user_id: userB.id, timestamp: 2, type: "normal" },
+      ]);
+
+      const result = await UserService.merge(
+        userA.alias_id as string,
+        userB.alias_id as string
+      );
+      expect(result.name).toEqual("Joann");
+      expect(UserPropertyTime.setPropertyTimes).toBeCalledWith(userA.id, [
+        ["name", "normal"],
+      ]);
+    });
+
+    describe("type: once", () => {
+      test("if both are type once, take the older value", async () => {
+        userA = {
+          ...userA,
+          p_foo: { ...nullTuple, str: "bar" },
+        };
+        userB = {
+          ...userB,
+          p_foo: { ...nullTuple, num: 1 },
+        };
+
+        User.get = jest.fn().mockResolvedValue([userA, userB]);
+        UserPropertyTime.getForUsers = jest.fn().mockResolvedValue([
+          {
+            property: "p_foo",
+            user_id: userA.id,
+            timestamp: 1,
+            type: "once",
+          },
+          {
+            property: "p_foo",
+            user_id: userB.id,
+            timestamp: 2,
+            type: "once",
+          },
+        ]);
+
+        const result = await UserService.merge(
+          userA.alias_id as string,
+          userB.alias_id as string
+        );
+        expect(result.p_foo).toEqual({ ...nullTuple, str: "bar" });
+        expect(UserPropertyTime.setPropertyTimes).toBeCalledWith(userA.id, [
+          ["p_foo", "once"],
+        ]);
+      });
+
+      test("if both are not type once, take the newer value", async () => {
+        userA = {
+          ...userA,
+          p_foo: { ...nullTuple, str: "bar" },
+        };
+        userB = {
+          ...userB,
+          p_foo: { ...nullTuple, num: 1 },
+        };
+
+        User.get = jest.fn().mockResolvedValue([userA, userB]);
+        UserPropertyTime.getForUsers = jest.fn().mockResolvedValue([
+          {
+            property: "p_foo",
+            user_id: userA.id,
+            timestamp: 1,
+            type: "once",
+          },
+          {
+            property: "p_foo",
+            user_id: userB.id,
+            timestamp: 2,
+            type: "normal",
+          },
+        ]);
+
+        const result = await UserService.merge(
+          userA.alias_id as string,
+          userB.alias_id as string
+        );
+        expect(result.p_foo).toEqual({ ...nullTuple, num: 1 });
+        expect(UserPropertyTime.setPropertyTimes).toBeCalledWith(userA.id, [
+          ["p_foo", "normal"],
+        ]);
+      });
     });
   });
 });

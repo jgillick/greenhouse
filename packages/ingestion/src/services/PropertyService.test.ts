@@ -125,19 +125,33 @@ describe("PropertyService", () => {
   });
 
   describe("getValueTuple", () => {
+    const nullTuple = {
+      str: null,
+      num: null,
+      bool: null,
+      date: null,
+    };
+
     test("assign value to type in tuple object", () => {
       const value = PropertyService.getValueTuple(false);
-      expect(value).toEqual({ bool: false });
+      expect(value).toEqual({ ...nullTuple, bool: false });
     });
 
     test("explicitly cast unknown value to string", () => {
       const value = PropertyService.getValueTuple({} as unknown as PropValue);
-      expect(value).toEqual({ str: "{}" });
+      expect(value).toEqual({ ...nullTuple, str: "{}" });
     });
 
-    test("null returns an empty tuple object", () => {
+    test("null returns an null tuple object", () => {
       const value = PropertyService.getValueTuple(null);
-      expect(value).toEqual({});
+      expect(value).toEqual(nullTuple);
+    });
+
+    test("undefined returns null tuple object", () => {
+      const value = PropertyService.getValueTuple(
+        undefined as unknown as PropValue
+      );
+      expect(value).toEqual(nullTuple);
     });
   });
 
@@ -344,6 +358,61 @@ describe("PropertyService", () => {
       expect(Event.getColumns).not.toBeCalled();
       expect(User.getColumns).not.toBeCalled();
       expect(result).toEqual([]);
+    });
+  });
+
+  describe("castType", () => {
+    test("native boolean", () => {
+      const result = PropertyService.castType(false, PropDataType.bool);
+      expect(result).toBe(false);
+    });
+
+    test("cast truthy number to boolean", () => {
+      const result = PropertyService.castType(1, PropDataType.bool);
+      expect(result).toBe(true);
+    });
+
+    test("cast falsy number to boolean", () => {
+      const result = PropertyService.castType(0, PropDataType.bool);
+      expect(result).toBe(false);
+    });
+
+    test("date string to unix epoch", () => {
+      const result = PropertyService.castType("2023-01-14", PropDataType.date);
+      expect(result).toBe(1673683200000);
+    });
+
+    test("invalid date string", () => {
+      const result = PropertyService.castType("wtf", PropDataType.date);
+      expect(result).toBe(null);
+    });
+
+    test("native number", () => {
+      const result = PropertyService.castType(1.234, PropDataType.num);
+      expect(result).toBe(1.234);
+    });
+
+    test("invalid number", () => {
+      const result = PropertyService.castType("one", PropDataType.num);
+      expect(result).toBe(null);
+    });
+
+    test("cast to number", () => {
+      const result = PropertyService.castType("5", PropDataType.num);
+      expect(result).toBe(5);
+    });
+
+    test("native string", () => {
+      const result = PropertyService.castType("hello", PropDataType.str);
+      expect(result).toBe("hello");
+    });
+
+    test("cast anything to string", () => {
+      const result = PropertyService.castType(
+        { foo: "bar" } as unknown as string,
+        PropDataType.str
+      );
+      expect(result).toBe('{"foo":"bar"}');
     });
   });
 });

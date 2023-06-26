@@ -5,9 +5,9 @@ CREATE TABLE IF NOT EXISTS user (
   created_at DateTime DEFAULT now(),
   updated_at DateTime DEFAULT now(),
   is_deleted UInt8 DEFAULT 0,
-  name String,
-  email String,
-  avatar String,
+  name String DEFAULT NULL,
+  email String DEFAULT NULL,
+  avatar String DEFAULT NULL,
 ) ENGINE = ReplacingMergeTree(updated_at, is_deleted)
 ORDER BY
   id PRIMARY KEY (id) SETTINGS clean_deleted_rows = 'Always';
@@ -26,11 +26,15 @@ CREATE TABLE IF NOT EXISTS user_alias (
 ORDER BY
   alias PRIMARY KEY (alias) SETTINGS clean_deleted_rows = 'Always';
 
--- User property update times
+-- User property update times and type
 -- This holds the last time the dynamic property was changed for this user and is used when merging multiple user records
 CREATE TABLE IF NOT EXISTS user_property_time (
   user_id UUID,
   property String,
+  -- Property set type
+  -- normal: set normally
+  -- once: The property was set with the setOnce function and shouldn't be overwritten
+  type Enum('normal', 'once') DEFAULT 'normal',
   timestamp DateTime DEFAULT now(),
 ) ENGINE = ReplacingMergeTree(timestamp)
 ORDER BY

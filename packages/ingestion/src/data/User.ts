@@ -13,8 +13,13 @@ export type UserRecord = {
   updated_at?: number;
   is_deleted?: number;
 
+  /** Built-in properties */
+  name?: string | null;
+  email?: string | null;
+  avatar?: string | null;
+
   /** User properties */
-  [key: string]: PropertyTuple | string | number | null | undefined;
+  [key: string]: PropertyTuple | string | number | boolean | null | undefined;
 };
 
 /**
@@ -29,7 +34,7 @@ export const User = {
     name: PropDataType.str,
     email: PropDataType.str,
     avatar: PropDataType.str,
-  },
+  } as Record<string, PropDataType>,
 
   /**
    * Get user records by IDs or alias IDs

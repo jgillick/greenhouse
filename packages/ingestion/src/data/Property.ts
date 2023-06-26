@@ -15,10 +15,10 @@ export enum PropDataType {
 export type PropValue = string | number | boolean;
 
 export type PropertyTuple = {
-  str?: string;
-  num?: number;
-  bool?: boolean;
-  date?: string;
+  str: string | null;
+  num: number | null;
+  bool: boolean | null;
+  date: string | null;
 };
 
 export type PropertyRecord = {
@@ -90,7 +90,7 @@ export const Property = {
           num Nullable(Float64),
           bool Nullable(Boolean),
           date Nullable(DateTime)
-        ) DEFAULTS (NULL, NULL, NULL, NULL)`,
+        ) DEFAULT (NULL, NULL, NULL, NULL)`,
       });
       resultSet.stream.destroy();
     });

@@ -40,6 +40,9 @@ describe("EventService", () => {
           user_alias_id: user.alias_id,
           [`${PROPERTY_PREFIX}_foo`]: {
             [PropDataType.str]: "fuz",
+            [PropDataType.num]: null,
+            [PropDataType.bool]: null,
+            [PropDataType.date]: null,
           },
         },
       ]);

@@ -2,32 +2,53 @@ import { Express, Request, Response } from "express";
 import { UserService } from "../../services/UserService";
 
 type AliasBody = {
-  userId: string;
+  user: string;
   alias: string;
 };
 
-type SetUserProperties = Record<string, string | number | boolean>;
+type SetUserProperties = {
+  user: string;
+  properties: Record<string, string | number | boolean>;
+};
+
+type IncrementProperty = {
+  user: string;
+  property: string;
+};
 
 export const userRoutes = (app: Express) => {
   app.post(
-    "/user/:userId/alias",
-    async (req: Request<{ userId: string }, AliasBody>, res: Response) => {
-      const { alias } = req.body;
-      const { userId } = req.params;
-      await UserService.alias(userId, alias);
+    "/users/alias",
+    async (req: Request<object, AliasBody>, res: Response) => {
+      const { user, alias } = req.body;
+      await UserService.alias(user, alias);
       res.status(200).send();
     }
   );
 
   app.post(
-    "/user/:userId/properties",
-    async (
-      req: Request<{ userId: string }, SetUserProperties>,
-      res: Response
-    ) => {
-      const data = req.body;
-      const { userId } = req.params;
-      await UserService.setProperties(userId, data);
+    "/users/properties/set",
+    async (req: Request<object, SetUserProperties>, res: Response) => {
+      const { user, properties } = req.body;
+      await UserService.setProperties(user, properties, "normal");
+      res.status(200).send();
+    }
+  );
+
+  app.post(
+    "/users/properties/once",
+    async (req: Request<object, SetUserProperties>, res: Response) => {
+      const { user, properties } = req.body;
+      await UserService.setProperties(user, properties, "once");
+      res.status(200).send();
+    }
+  );
+
+  app.post(
+    "/users/properties/increment",
+    async (req: Request<object, IncrementProperty>, res: Response) => {
+      const { user, property } = req.body;
+      await UserService.incrementProperty(user, property);
       res.status(200).send();
     }
   );
