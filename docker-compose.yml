@@ -1,0 +1,24 @@
+version: '3'
+
+x-common-env: &common-env
+   CLICKHOUSE_HOST: http://clickhouse:8123
+   CLICKHOUSE_DB: greenhouse
+   CLICKHOUSE_USER: default
+   CLICKHOUSE_PASSWORD:
+
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server
+    environment:
+      <<: *common-env
+    ports:
+      - 9001:9001
+      - 8123:8123
+
+  ingestion:
+    build: ./packages/ingestion
+    environment:
+      <<: *common-env
+      PORT: 6433
+    ports:
+      - 6433:6433

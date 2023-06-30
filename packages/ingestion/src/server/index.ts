@@ -4,8 +4,7 @@ import morgan from "morgan";
 import { eventRoutes } from "./routes/event";
 import { userRoutes } from "./routes/user";
 
-const PORT = 3000;
-
+const PORT = process.env.PORT ?? 6433;
 const app = express();
 
 // Request logging
@@ -22,7 +21,7 @@ userRoutes(app);
 // Start server
 try {
   app.listen(PORT, (): void => {
-    console.log(`🚀 Greenhouse running on http://localhost${PORT}`);
+    console.log(`🚀 Greenhouse ingestion server running on port ${PORT}`);
   });
 } catch (error: any) {
   console.error(`Error occurred: ${error.message}`);
