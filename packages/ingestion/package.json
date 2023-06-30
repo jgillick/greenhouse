@@ -3,6 +3,7 @@
   "description": "Real-time user event analytics system",
   "license": "MIT",
   "scripts": {
+    "build": "rm -r ./dist; yarn build;",
     "dev": "ts-node-dev --respawn src/server/index.ts",
     "clickhouse:up": "docker run --rm -d -e CLICKHOUSE_DB=greenhouse -p8123:8123 -p9000:9000 -p9440:9440 --name clickhouse-server --ulimit nofile=262144:262144 clickhouse/clickhouse-server",
     "clickhouse:down": "docker stop clickhouse-server",
@@ -17,6 +18,7 @@
     "date-fns": "^2.30.0",
     "express": "^4.18.2",
     "morgan": "^1.10.0",
+    "pm2": "^5.3.0",
     "src": "link:./src",
     "ts-jest": "^29.1.0",
     "uuid": "^9.0.0"
