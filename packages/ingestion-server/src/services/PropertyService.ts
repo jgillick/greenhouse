@@ -21,12 +21,13 @@ export const PropertyService = {
    */
   convert2ColumnName(name: string, existing: string[]) {
     let column = name
-      .toLowerCase()
       .trim()
+      .replace(/([a-z])([A-Z])/g, "$1_$2") // convert camelCase to snake_case
       .replace(/[\.\-\s]/g, "_") // Convert dots and dashes to underlines
-      .replace(/[^a-z0-9_]/g, "") // Remove unsupported characters
+      .replace(/[^a-zA-Z0-9_]/g, "") // Remove unsupported characters
       .replace(/_+/g, "_") // Collapse multiple underscores
-      .substring(0, 30);
+      .substring(0, 30)
+      .toLowerCase();
 
     // Start with a p_ to denote it as a property
     column = `${PROPERTY_PREFIX}_${column}`;

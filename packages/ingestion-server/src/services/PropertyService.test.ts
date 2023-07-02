@@ -65,6 +65,14 @@ describe("PropertyService", () => {
       ]);
       expect(result).toBe(`${PROPERTY_PREFIX}_foo2`);
     });
+
+    test("convert camelCase to snake_case", () => {
+      const result = PropertyService.convert2ColumnName(
+        "hello_worldGoodByeNOW",
+        []
+      );
+      expect(result).toBe("p_hello_world_good_bye_now");
+    });
   });
 
   describe("determineTupleType", () => {
