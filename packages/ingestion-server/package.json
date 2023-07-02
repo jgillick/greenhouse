@@ -3,6 +3,7 @@
   "description": "Real-time user event analytics system",
   "license": "MIT",
   "main": "dist/server/index.js",
+  "version": "0.0.1",
   "scripts": {
     "build": "rm -fr ./dist; yarn tsc;",
     "dev": "ts-node-dev --respawn src/server/index.ts",
