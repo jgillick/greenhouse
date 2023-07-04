@@ -1,4 +1,5 @@
 import { parseISO, isValid as isValidDate } from "date-fns";
+import { LocalCache, cache } from "../cache";
 import {
   Property,
   PropFor,
@@ -12,14 +13,16 @@ import {
 import { Event } from "../data/Event";
 import { User } from "../data/User";
 
+const cacheStore = new LocalCache(60);
+
 /**
  * Manages creating new properties on the event and user tables.
  */
-export const PropertyService = {
+export class PropertyService {
   /**
    * Create a valid column name from a user-defined string
    */
-  convert2ColumnName(name: string, existing: string[]) {
+  static convert2ColumnName(name: string, existing: string[]) {
     let column = name
       .trim()
       .replace(/([a-z])([A-Z])/g, "$1_$2") // convert camelCase to snake_case
@@ -41,12 +44,12 @@ export const PropertyService = {
     }
 
     return column;
-  },
+  }
 
   /**
    * Determine which tuple slot this value should go it.
    */
-  determineTupleType(val: unknown) {
+  static determineTupleType(val: unknown) {
     if (val === null || typeof val === "undefined") {
       return null;
     }
@@ -69,12 +72,12 @@ export const PropertyService = {
       }
     }
     return PropDataType.str;
-  },
+  }
 
   /**
    * Return the property value formatted into the correct tuple space
    */
-  getValueTuple(value: PropValue | null): PropertyTuple {
+  static getValueTuple(value: PropValue | null): PropertyTuple {
     const nullTuple: PropertyTuple = {
       [PropDataType.str]: null,
       [PropDataType.num]: null,
@@ -95,12 +98,12 @@ export const PropertyService = {
       ...nullTuple,
       [type]: castedValue,
     };
-  },
+  }
 
   /**
    * Create new prop columns, if necessary
    */
-  async createPropColumns(
+  static async createPropColumns(
     propFor: PropFor,
     propsEntries: [/*name*/ string, /*value*/ unknown][]
   ): Promise<Map<string, string>> {
@@ -108,7 +111,7 @@ export const PropertyService = {
     const builtInProps = this.getBuiltInProps(propFor);
 
     // Get existing prop definitions
-    const existingProps = await Property.getProps(propFor);
+    const existingProps = await this.getPropertyDefinitionList(propFor);
     const existingPropMap = new Map<string, PropertyRecord>();
     existingProps.forEach((row) => {
       existingPropMap.set(row.name.toLowerCase(), row);
@@ -179,12 +182,12 @@ export const PropertyService = {
 
     await Promise.all([createDefs, createCols]);
     return columnMap;
-  },
+  }
 
   /**
    * Get table model
    */
-  getTableModel(table: PropFor) {
+  static getTableModel(table: PropFor) {
     switch (table) {
       case PropFor.EVENT:
         return Event;
@@ -193,34 +196,43 @@ export const PropertyService = {
       default:
         return null;
     }
-  },
+  }
 
   /**
    * Get all the columns for a table
    */
-  getTableColumns(table: PropFor): Promise<string[]> {
+  @cache(cacheStore)
+  static getTableColumns(table: PropFor): Promise<string[]> {
     const model = this.getTableModel(table);
     if (model) {
       return model?.getColumns();
     }
     return Promise.resolve([]);
-  },
+  }
+
+  /**
+   * Get the full list of property definition
+   */
+  @cache(cacheStore)
+  static getPropertyDefinitionList(table: PropFor) {
+    return Property.getProps(table);
+  }
 
   /**
    * Get built-in strongly typed properties
    */
-  getBuiltInProps(table: PropFor): Record<string, PropDataType> {
+  static getBuiltInProps(table: PropFor): Record<string, PropDataType> {
     const model = this.getTableModel(table);
     if (model) {
       return model?.BUILT_IN_PROPERTIES ?? {};
     }
     return {};
-  },
+  }
 
   /**
    * Cast the value to a type, or null
    */
-  castType(
+  static castType(
     value: PropValue,
     type: PropDataType
   ): string | number | boolean | null {
@@ -233,7 +245,6 @@ export const PropertyService = {
     } else if (type === PropDataType.date && typeof value === "string") {
       const date = parseISO(value);
       const isDate = isValidDate(date);
-      console.log(date);
       if (isDate) {
         return date.getTime();
       }
@@ -249,5 +260,5 @@ export const PropertyService = {
       return JSON.stringify(value);
     }
     return null;
-  },
-};
+  }
+}

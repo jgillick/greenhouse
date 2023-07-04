@@ -4,7 +4,7 @@ import {
   EventPayload,
   EventItem,
   EventProps,
-} from "../../services/EventService";
+} from "../services/EventService";
 
 export type IncomingEvent = {
   /** The unix timestamp of when the event took place */

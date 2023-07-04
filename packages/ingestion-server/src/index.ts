@@ -3,7 +3,7 @@ import bodyParser from "body-parser";
 import morgan from "morgan";
 import { eventRoutes } from "./routes/event";
 import { userRoutes } from "./routes/user";
-import { version } from "../../package.json";
+import { version } from "../package.json";
 
 const PORT = process.env.PORT ?? 6433;
 const app = express();

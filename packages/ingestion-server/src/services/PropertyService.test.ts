@@ -8,9 +8,23 @@ import {
   PropDataType,
   PROPERTY_PREFIX,
 } from "../data/Property";
+import { LocalCache } from "../cache";
 import { PropertyService } from "./PropertyService";
 
 describe("PropertyService", () => {
+  let cacheHasFn: jest.SpyInstance;
+  let cacheGetFn: jest.SpyInstance;
+
+  beforeEach(() => {
+    // Disable cache
+    cacheHasFn = jest
+      .spyOn(LocalCache.prototype, "has")
+      .mockImplementation((_: string) => Promise.resolve(false));
+    cacheGetFn = jest
+      .spyOn(LocalCache.prototype, "get")
+      .mockImplementation((_: string) => Promise.resolve());
+  });
+
   describe("convert2ColumnName", () => {
     test("add property prefix", () => {
       const result = PropertyService.convert2ColumnName("foo", []);
@@ -165,10 +179,12 @@ describe("PropertyService", () => {
 
   describe("createPropColumns", () => {
     beforeEach(() => {
-      Property.getProps = jest.fn().mockResolvedValue([]);
       Property.create = jest.fn();
       Property.addPropColumns = jest.fn();
       jest.spyOn(PropertyService, "getTableColumns").mockResolvedValue([]);
+      jest
+        .spyOn(PropertyService, "getPropertyDefinitionList")
+        .mockResolvedValue([]);
     });
 
     test("return map of property names to column names", async () => {
@@ -199,13 +215,18 @@ describe("PropertyService", () => {
       jest
         .spyOn(PropertyService, "getTableColumns")
         .mockResolvedValue([`${PROPERTY_PREFIX}_foo`]);
-      Property.getProps = jest.fn().mockResolvedValue([
-        {
-          name: "foo",
-          column: `${PROPERTY_PREFIX}_foo`,
-          dataTypes: [PropDataType.str],
-        },
-      ]);
+
+      jest
+        .spyOn(PropertyService, "getPropertyDefinitionList")
+        .mockResolvedValue([
+          {
+            name: "foo",
+            column: `${PROPERTY_PREFIX}_foo`,
+            dataTypes: [PropDataType.str],
+            for: PropFor.EVENT,
+            timestamp: 0,
+          },
+        ]);
 
       await PropertyService.createPropColumns(PropFor.EVENT, [
         ["foo", "value"],
@@ -216,13 +237,17 @@ describe("PropertyService", () => {
     });
 
     test("property exists in property table, but not as a table column", async () => {
-      Property.getProps = jest.fn().mockResolvedValue([
-        {
-          name: "foo",
-          column: `${PROPERTY_PREFIX}_foo`,
-          dataTypes: [PropDataType.str],
-        },
-      ]);
+      jest
+        .spyOn(PropertyService, "getPropertyDefinitionList")
+        .mockResolvedValue([
+          {
+            name: "foo",
+            column: `${PROPERTY_PREFIX}_foo`,
+            dataTypes: [PropDataType.str],
+            for: PropFor.EVENT,
+            timestamp: 0,
+          },
+        ]);
 
       await PropertyService.createPropColumns(PropFor.EVENT, [
         ["foo", "value"],
@@ -244,13 +269,17 @@ describe("PropertyService", () => {
       jest
         .spyOn(PropertyService, "getTableColumns")
         .mockResolvedValue([`${PROPERTY_PREFIX}_foo`]);
-      Property.getProps = jest.fn().mockResolvedValue([
-        {
-          name: "foo",
-          column: `${PROPERTY_PREFIX}_foo`,
-          dataTypes: [PropDataType.str],
-        },
-      ]);
+      jest
+        .spyOn(PropertyService, "getPropertyDefinitionList")
+        .mockResolvedValue([
+          {
+            name: "foo",
+            column: `${PROPERTY_PREFIX}_foo`,
+            dataTypes: [PropDataType.str],
+            for: PropFor.EVENT,
+            timestamp: 0,
+          },
+        ]);
 
       await PropertyService.createPropColumns(PropFor.EVENT, [["foo", false]]);
 
@@ -266,13 +295,17 @@ describe("PropertyService", () => {
     });
 
     test("ignore case when matching with property definitions", async () => {
-      Property.getProps = jest.fn().mockResolvedValue([
-        {
-          name: "FoO",
-          column: `${PROPERTY_PREFIX}_foo`,
-          dataTypes: [PropDataType.str],
-        },
-      ]);
+      jest
+        .spyOn(PropertyService, "getPropertyDefinitionList")
+        .mockResolvedValue([
+          {
+            name: "FoO",
+            column: `${PROPERTY_PREFIX}_foo`,
+            dataTypes: [PropDataType.str],
+            for: PropFor.EVENT,
+            timestamp: 0,
+          },
+        ]);
 
       await PropertyService.createPropColumns(PropFor.EVENT, [
         ["fOo", "value"],
@@ -367,6 +400,15 @@ describe("PropertyService", () => {
       expect(User.getColumns).not.toBeCalled();
       expect(result).toEqual([]);
     });
+
+    test("use cache", async () => {
+      cacheHasFn.mockResolvedValue(true);
+      cacheGetFn.mockResolvedValue(["cached_col"]);
+      const result = await PropertyService.getTableColumns(PropFor.EVENT);
+      expect(cacheGetFn).toBeCalledWith("Object.getTableColumns#event");
+      expect(Event.getColumns).not.toBeCalled();
+      expect(result).toEqual(["cached_col"]);
+    });
   });
 
   describe("castType", () => {
@@ -424,6 +466,47 @@ describe("PropertyService", () => {
         PropDataType.str
       );
       expect(result).toBe('{"foo":"bar"}');
+    });
+  });
+
+  describe("getPropertyDefinitionList", () => {
+    beforeEach(() => {
+      Property.getProps = jest
+        .fn()
+        .mockResolvedValue([
+          { name: "foo", column: ``, dataTypes: [PropDataType.str] },
+        ]);
+    });
+
+    test("use cache", async () => {
+      cacheHasFn.mockResolvedValue(true);
+      cacheGetFn.mockResolvedValue([
+        { name: "cached", column: ``, dataTypes: [PropDataType.str] },
+      ]);
+      const result = await PropertyService.getPropertyDefinitionList(
+        PropFor.EVENT
+      );
+      expect(cacheGetFn).toBeCalledWith(
+        "Object.getPropertyDefinitionList#event"
+      );
+      expect(Property.getProps).not.toBeCalled();
+      expect(result[0]).toEqual(expect.objectContaining({ name: "cached" }));
+    });
+
+    test("no cache", async () => {
+      cacheHasFn.mockResolvedValue(false);
+      cacheGetFn.mockResolvedValue(undefined);
+      const result = await PropertyService.getPropertyDefinitionList(
+        PropFor.EVENT
+      );
+      expect(cacheHasFn).toBeCalledWith(
+        "Object.getPropertyDefinitionList#event"
+      );
+      expect(cacheGetFn).not.toBeCalledWith(
+        "Object.getPropertyDefinitionList#event"
+      );
+      expect(Property.getProps).toBeCalled();
+      expect(result[0]).toEqual(expect.objectContaining({ name: "foo" }));
     });
   });
 });
